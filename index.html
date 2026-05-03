@@ -564,7 +564,7 @@ async function loadAllData() {
   // Load appointments
   try {
     if (state.adminOpen) {
-      const { data } = await sb.from('appointments').select('*').order('date').order('time');
+      const { data } = await sb.from('appointments_with_user').select('*').order('date').order('time');
       state.appointments = data || [];
     } else {
       const { data } = await sb.from('appointments')
@@ -767,7 +767,7 @@ function renderAppointments() {
     el.className = 'appt-card';
     el.innerHTML =
       '<div><div class="appt-date">' + formatDateDisplay(appt.date) + '</div>' +
-      (state.adminOpen ? '<div class="appt-meta">' + (appt.name || appt.email || 'Cliente') + '</div>' : '') +
+      (state.adminOpen ? '<div class="appt-meta">' + (appt.user_name || appt.name || appt.email || 'Cliente') + '</div>' : '') +
       (state.adminOpen && appt.notes ? '<div class="appt-meta" style="font-style:italic;margin-top:2px">' + appt.notes + '</div>' : '') +
       (!state.adminOpen && appt.notes ? '<div class="appt-meta">' + appt.notes + '</div>' : '') + '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
@@ -969,7 +969,7 @@ function renderDayView() {
       '<div class="day-slot-dot" style="' + (isBlock ? 'align-self:stretch;width:2px;border-radius:1px;background:#333;margin:2px 2px' : '') + '"></div>' +
       '<div style="flex:1">' +
         (appt
-          ? '<div class="day-slot-name">' + (appt.name || appt.email || 'Cliente') + '</div>' +
+          ? '<div class="day-slot-name">' + (appt.user_name || appt.name || appt.email || 'Cliente') + '</div>' +
             (appt.notes ? '<div class="day-slot-notes">' + appt.notes + '</div>' : '')
           : '<div class="day-slot-name" style="font-size:11px;color:#333;letter-spacing:1px">' + (available ? 'libre' : 'no disponible') + '</div>') +
       '</div>' +
