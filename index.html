@@ -554,7 +554,9 @@ sb.auth.onAuthStateChange(async (event, session) => {
     currentUser = session.user;
     await initApp();
   } else if (event === 'INITIAL_SESSION' && !session) {
-    // No hay sesión — ya estamos mostrando el login, no hace falta hacer nada
+    // No hay sesión: ocultar loading y mostrar login
+    showLoading(false);
+    document.getElementById('auth-screen').classList.add('open');
   } else if (event === 'SIGNED_OUT') {
     inPasswordResetFlow = false;
     currentUser = null;
@@ -627,6 +629,7 @@ async function initApp() {
   } catch(e) {
     console.warn('loadAllData error:', e);
   }
+  showLoading(false);
   showApp(true);
   renderCalendar();
   renderTimes();
@@ -1215,8 +1218,15 @@ document.getElementById('next').addEventListener('click', () => {
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
 // Mostrar login de inmediato; onAuthStateChange se encarga si hay sesión guardada
-showLoading(false);
-document.getElementById('auth-screen').classList.add('open');
+// Mostrar loading mientras Supabase comprueba si hay sesion guardada
+showLoading(true);
+// Timeout de seguridad: si Supabase no responde en 4s, mostrar login
+setTimeout(() => {
+  if (!currentUser) {
+    showLoading(false);
+    document.getElementById('auth-screen').classList.add('open');
+  }
+}, 4000);
 </script>
 </body>
 </html>
