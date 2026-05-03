@@ -542,22 +542,31 @@ sb.auth.onAuthStateChange(async (event, session) => {
     // Usuario viene del enlace de reset: mostrar modal de nueva contraseña
     inPasswordResetFlow = true;
     currentUser = session.user;
+    showLoading(false);
     document.getElementById('auth-screen').classList.remove('open');
     showPasswordResetModal();
     return;
   }
+
   // Ignorar el SIGNED_IN que Supabase emite internamente al llamar updateUser
-  // para evitar que la app se inicialice mientras el modal sigue abierto
+  // (solo mientras el modal de reset sigue abierto, i.e. aún no se ha guardado)
   if (inPasswordResetFlow && event === 'SIGNED_IN') return;
+
   if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session && session.user) {
-    if (currentUser && currentUser.id === session.user.id) return; // ya inicializado
+    // Evitar reinicializar si ya es el mismo usuario y la app ya está visible
+    if (currentUser && currentUser.id === session.user.id && document.getElementById('app').style.display !== 'none') return;
     currentUser = session.user;
+    showLoading(true);
     await initApp();
+    showLoading(false);
   } else if (event === 'INITIAL_SESSION' && !session) {
-    // No hay sesión — ya estamos mostrando el login, no hace falta hacer nada
+    // No hay sesión guardada: mostrar pantalla de login
+    showLoading(false);
+    document.getElementById('auth-screen').classList.add('open');
   } else if (event === 'SIGNED_OUT') {
     inPasswordResetFlow = false;
     currentUser = null;
+    showLoading(false);
     showApp(false);
     document.getElementById('auth-screen').classList.add('open');
   }
@@ -1214,9 +1223,8 @@ document.getElementById('next').addEventListener('click', () => {
 });
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
-// Mostrar login de inmediato; onAuthStateChange se encarga si hay sesión guardada
-showLoading(false);
-document.getElementById('auth-screen').classList.add('open');
+// Mostrar loading hasta que onAuthStateChange resuelva si hay sesión activa o no
+showLoading(true);
 </script>
 </body>
 </html>
