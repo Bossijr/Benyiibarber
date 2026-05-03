@@ -463,12 +463,14 @@ document.getElementById('btn-do-register').addEventListener('click', async () =>
 
 // ─── AUTH STATE ────────────────────────────────────────────────────────────
 sb.auth.onAuthStateChange(async (event, session) => {
-  if (session && session.user) {
+  if (event === 'SIGNED_IN' && session && session.user) {
     currentUser = session.user;
+    document.getElementById('auth-screen').classList.remove('open');
     await initApp();
-  } else {
+  } else if (event === 'SIGNED_OUT') {
     currentUser = null;
     showApp(false);
+    document.getElementById('auth-screen').classList.add('open');
   }
 });
 
@@ -948,26 +950,18 @@ document.getElementById('next').addEventListener('click', () => {
 // ─── INIT ──────────────────────────────────────────────────────────────────
 showLoading(true);
 
-// Safety timeout: if nothing happens in 6s, show login
-const initTimeout = setTimeout(() => {
-  showLoading(false);
-  document.getElementById('auth-screen').classList.add('open');
-}, 6000);
+// Mostrar login directamente, sin esperar a Supabase
+showLoading(false);
+document.getElementById('auth-screen').classList.add('open');
 
+// Comprobar sesión en segundo plano
 sb.auth.getSession().then(({ data: { session } }) => {
-  clearTimeout(initTimeout);
-  if (!session) {
-    showLoading(false);
-    document.getElementById('auth-screen').classList.add('open');
-  } else {
+  if (session && session.user) {
     currentUser = session.user;
+    document.getElementById('auth-screen').classList.remove('open');
     initApp();
   }
-}).catch(() => {
-  clearTimeout(initTimeout);
-  showLoading(false);
-  document.getElementById('auth-screen').classList.add('open');
-});
+}).catch(e => console.warn('getSession error:', e));
 </script>
 </body>
 </html>
