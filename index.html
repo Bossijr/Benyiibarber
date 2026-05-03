@@ -262,6 +262,14 @@ function showToast(msg) {
 }
 
 function isDayBlocked(dateStr) { return state.blockedDays.includes(dateStr); }
+function nextTimeSlot(t) {
+  const idx = TIMES.indexOf(t);
+  return idx !== -1 && idx < TIMES.length - 1 ? TIMES[idx + 1] : null;
+}
+function isTimeOccupied(dateStr, t) {
+  // A slot is occupied if there's a booking starting at t, OR if t is the second slot of a booking
+  return state.appointments.some(a => a.date === dateStr && (a.time === t || a.endTime === t));
+}
 function hasCustomAvailability(dateStr) { return Object.prototype.hasOwnProperty.call(state.availableTimes, dateStr); }
 function isTimeAvailable(dateStr, time) {
   if (!hasCustomAvailability(dateStr)) return true;
@@ -322,6 +330,7 @@ function renderTimes() {
   grid.innerHTML = '';
   const dateStr = state.selectedDate ? state.selectedDate.toDateString() : null;
   const bookedTimes = dateStr ? state.appointments.filter(a => a.date === dateStr).map(a => a.time) : [];
+  const occupiedTimes = dateStr ? TIMES.filter(t => isTimeOccupied(dateStr, t)) : [];
   const dayBlocked = dateStr ? isDayBlocked(dateStr) : false;
 
   TIMES.forEach(t => {
@@ -330,11 +339,11 @@ function renderTimes() {
     let cls = 'time-slot';
     if (state.adminOpen && dateStr) {
       cls += available ? ' admin-available' : ' admin-unavailable';
-      if (bookedTimes.includes(t)) cls += ' booked';
+      if (occupiedTimes.includes(t)) cls += ' booked';
     } else {
       if (dayBlocked || !available) {
         cls += ' blocked';
-      } else if (bookedTimes.includes(t)) {
+      } else if (occupiedTimes.includes(t)) {
         cls += ' booked';
       }
     }
@@ -345,7 +354,7 @@ function renderTimes() {
       if (!dateStr) { showToast('Selecciona primero una fecha'); return; }
       if (state.adminOpen) {
         if (dayBlocked) { showToast('El dia entero esta bloqueado. Desbloquea el dia primero.'); return; }
-        if (bookedTimes.includes(t)) { showToast('Esta hora ya tiene una cita reservada'); return; }
+        if (occupiedTimes.includes(t)) { showToast('Esta hora ya tiene una cita reservada'); return; }
         if (!hasCustomAvailability(dateStr)) {
           state.availableTimes[dateStr] = [...TIMES];
         }
@@ -364,7 +373,7 @@ function renderTimes() {
         renderTimes(); renderAdminAvailableTimes();
         return;
       }
-      if (dayBlocked || !available || bookedTimes.includes(t)) return;
+      if (dayBlocked || !available || occupiedTimes.includes(t)) return;
       state.selectedTime = t;
       renderTimes();
     });
@@ -426,7 +435,11 @@ document.getElementById('btn-book').addEventListener('click', () => {
   if (!state.selectedTime) { showToast('Selecciona una hora'); return; }
   if (!isTimeAvailable(state.selectedDate.toDateString(), state.selectedTime)) { showToast('Esta hora no esta disponible'); return; }
   if (!name) { showToast('Introduce tu nombre'); return; }
-  state.appointments.push({ date: state.selectedDate.toDateString(), time: state.selectedTime, name, notes: document.getElementById('inp-notes').value.trim() });
+  const nextSlot = nextTimeSlot(state.selectedTime);
+  const dateStrBook = state.selectedDate.toDateString();
+  if (nextSlot && isTimeOccupied(dateStrBook, nextSlot)) { showToast('No hay hueco para la hora completa (siguiente franja ocupada)'); return; }
+  if (nextSlot && !isTimeAvailable(dateStrBook, nextSlot)) { showToast('No hay hueco para la hora completa (siguiente franja no disponible)'); return; }
+  state.appointments.push({ date: dateStrBook, time: state.selectedTime, endTime: nextSlot || null, name, notes: document.getElementById('inp-notes').value.trim() });
   save('bgz_appts', state.appointments);
   state.selectedDate = null; state.selectedTime = null;
   document.getElementById('inp-name').value = '';
@@ -537,7 +550,7 @@ function renderAdminAvailableTimes() {
   }
   if (hint) hint.style.display = 'none';
   const dayBlocked = isDayBlocked(dateStr);
-  const bookedTimes = state.appointments.filter(a => a.date === dateStr).map(a => a.time);
+  const bookedTimes = TIMES.filter(t => isTimeOccupied(dateStr, t));
   list.innerHTML = '';
 
   // Si el día está bloqueado, mostrar aviso con opción de desbloquear
@@ -643,19 +656,22 @@ function renderDayView() {
 
   TIMES.forEach(t => {
     const appt = appts.find(a => a.time === t);
-    const available = !blocked && isTimeAvailable(dateStr, t);
+    const isSecondSlot = !appt && state.appointments.some(a => a.date === dateStr && a.endTime === t);
+    const available = !blocked && !isSecondSlot && isTimeAvailable(dateStr, t);
     const el = document.createElement('div');
-    el.className = 'day-slot ' + (appt ? 'slot-booked' : available ? 'slot-available' : 'slot-unavailable');
+    el.className = 'day-slot ' + (appt ? 'slot-booked' : isSecondSlot ? 'slot-booked' : available ? 'slot-available' : 'slot-unavailable');
     el.innerHTML =
       '<div class="day-slot-time">' + t + '</div>' +
       '<div class="day-slot-dot"></div>' +
       '<div style="flex:1">' +
-        (appt
-          ? '<div class="day-slot-name">' + appt.name + '</div>' +
+        (isSecondSlot
+          ? '<div class="day-slot-name" style="font-size:11px;color:#444;letter-spacing:1px">↑ continuación</div>'
+          : appt
+          ? '<div class="day-slot-name">' + appt.name + (appt.endTime ? ' <span style="font-size:10px;color:#555">hasta ' + appt.endTime + '</span>' : '') + '</div>' +
             (appt.notes ? '<div class="day-slot-notes">' + appt.notes + '</div>' : '')
           : '<div class="day-slot-name" style="font-size:11px;color:#333;letter-spacing:1px">' + (available ? 'libre' : 'no disponible') + '</div>') +
       '</div>' +
-      (appt ? '<button class="appt-remove" data-date="' + appt.date + '" data-time="' + appt.time + '" style="opacity:0.4">&times;</button>' : '');
+      (!isSecondSlot && appt ? '<button class="appt-remove" data-date="' + appt.date + '" data-time="' + appt.time + '" style="opacity:0.4">&times;</button>' : '');
     if (appt) {
       el.querySelector('.appt-remove').addEventListener('click', () => {
         const gi = state.appointments.findIndex(a => a.date === appt.date && a.time === appt.time);
