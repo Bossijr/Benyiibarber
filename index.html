@@ -707,7 +707,7 @@ async function loadAllData() {
 
   // Load ALL appointments for occupied time check
   try {
-    const { data: allAppts } = await sb.from('appointments').select('date,time,end_time,name,notes,id,user_id');
+    const { data: allAppts } = await sb.from('appointments').select('date,time,end_time,name,notes,id,user_id,email');
     state.allAppointments = allAppts || [];
   } catch(e) { state.allAppointments = []; }
 
@@ -873,6 +873,7 @@ document.getElementById('btn-book').addEventListener('click', async () => {
     time: state.selectedTime,
     end_time: nextSlot || null,
     name,
+    email: currentUser.email,
     notes: document.getElementById('inp-notes').value.trim()
   };
   const { error } = await sb.from('appointments').insert(apptData);
@@ -1085,6 +1086,59 @@ function getApptDisplayName(appt) {
   return appt.user_id ? 'Usuario #' + appt.user_id.slice(0,6) : 'Sin nombre';
 }
 
+// ─── CANCELLATION EMAIL ────────────────────────────────────────────────────
+async function sendCancellationEmail(appt) {
+  if (!appt.user_id) return;
+
+  // Obtener el email del usuario desde Supabase Auth (solo admin puede hacer esto
+  // a través de la anon key + RLS; si falla, usamos el nombre guardado en la cita)
+  let userEmail = null;
+  let userName = appt.name || null;
+
+  try {
+    // Intentar obtener el email desde auth.users via la sesión actual
+    const { data: { user } } = await sb.auth.getUser();
+    // Si la cita es del usuario actual (poco probable en modo admin con otra cita)
+    // buscamos en allAppointments si hay algún dato extra
+    // La forma más fiable: guardar el email en la tabla appointments al reservar
+    // Por ahora lo buscamos en user_metadata si coincide con currentUser
+    if (appt.user_id === currentUser?.id) {
+      userEmail = currentUser.email;
+      userName = currentUser.user_metadata?.name || userName;
+    }
+  } catch(e) { /* silencioso */ }
+
+  // Si no tenemos email, intentar buscarlo en la columna "email" de appointments
+  // (la añadiremos al guardar nuevas citas a partir de ahora)
+  if (!userEmail && appt.email) userEmail = appt.email;
+
+  if (!userEmail) {
+    console.warn('No se pudo obtener el email del usuario para enviar la cancelación');
+    return;
+  }
+
+  // Formatear fecha legible
+  const d = new Date(appt.date);
+  const dateLabel = d.getDate() + ' de ' + ['enero','febrero','marzo','abril','mayo','junio',
+    'julio','agosto','septiembre','octubre','noviembre','diciembre'][d.getMonth()]
+    + ' de ' + d.getFullYear();
+
+  await fetch(`${SUPABASE_URL}/functions/v1/cancel-appointment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+    },
+    body: JSON.stringify({
+      userEmail,
+      userName,
+      date: dateLabel,
+      time: appt.time,
+      notes: appt.notes || null,
+    }),
+  });
+}
+
 // ─── DAY VIEW (ADMIN) ──────────────────────────────────────────────────────
 let dayViewDate = new Date(); dayViewDate.setHours(0,0,0,0);
 
@@ -1127,10 +1181,14 @@ function renderDayView() {
       (appt ? '<button class="appt-remove" data-id="' + appt.id + '" style="opacity:0.4;align-self:flex-start">&times;</button>' : '');
     if (appt) {
       el.querySelector('.appt-remove').addEventListener('click', async () => {
+        // Guardar datos antes de borrar para el email
+        const cancelledAppt = { ...appt };
         await sb.from('appointments').delete().eq('id', appt.id);
         await loadAllData();
         renderCalendar(); renderTimes(); renderAppointments(); renderDayView();
         showToast('Cita cancelada');
+        // Enviar email de cancelación en segundo plano (sin bloquear la UI)
+        sendCancellationEmail(cancelledAppt).catch(e => console.warn('Email no enviado:', e));
       });
     }
     timeline.appendChild(el);
