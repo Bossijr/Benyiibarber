@@ -536,8 +536,9 @@ document.getElementById('auth-reset-email').addEventListener('keydown', e => {
 
 // ─── AUTH STATE ────────────────────────────────────────────────────────────
 sb.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'PASSWORD_RECOVERY') {
-    // Usuario viene del enlace de reset — mostrar modal para nueva contraseña
+  if (event === 'PASSWORD_RECOVERY' && session && session.user) {
+    // Usuario viene del enlace de reset: guardar sesión y mostrar modal
+    currentUser = session.user;
     document.getElementById('auth-screen').classList.remove('open');
     showPasswordResetModal();
     return;
@@ -594,8 +595,13 @@ function showPasswordResetModal() {
       document.getElementById('new-pass-error').textContent = 'Error al guardar. Inténtalo de nuevo.';
     } else {
       modal.remove();
-      showToast('Contraseña actualizada. ¡Ya puedes entrar!');
-      await initApp();
+      currentUser = null;
+      state.appointments = [];
+      state.allAppointments = [];
+      showApp(false);
+      document.getElementById('auth-screen').classList.add('open');
+      await sb.auth.signOut();
+      showToast('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
     }
   });
 }
