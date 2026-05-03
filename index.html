@@ -607,10 +607,11 @@ async function initApp() {
   renderTimes();
   renderAppointments();
   try {
-    await Promise.race([
-      loadAllData(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
-    ]);
+    let done = false;
+    const timeoutId = setTimeout(() => { if (!done) console.warn('loadAllData timeout'); }, 10000);
+    await loadAllData();
+    done = true;
+    clearTimeout(timeoutId);
   } catch(e) {
     console.warn('loadAllData error:', e);
   }
