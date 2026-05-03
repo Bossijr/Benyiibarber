@@ -595,13 +595,18 @@ function showPasswordResetModal() {
       document.getElementById('new-pass-error').textContent = 'Error al guardar. Inténtalo de nuevo.';
     } else {
       modal.remove();
-      currentUser = null;
-      state.appointments = [];
-      state.allAppointments = [];
-      showApp(false);
-      document.getElementById('auth-screen').classList.add('open');
-      await sb.auth.signOut();
-      showToast('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
+      // La sesión ya es válida tras updateUser — entramos directamente
+      const { data: { session } } = await sb.auth.getSession();
+      if (session && session.user) {
+        currentUser = session.user;
+        showToast('Contraseña actualizada correctamente.');
+        await initApp();
+      } else {
+        // Fallback: pedir login manual
+        showApp(false);
+        document.getElementById('auth-screen').classList.add('open');
+        showToast('Contraseña actualizada. Inicia sesión.');
+      }
     }
   });
 }
