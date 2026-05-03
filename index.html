@@ -541,27 +541,22 @@ sb.auth.onAuthStateChange(async (event, session) => {
   if (event === 'PASSWORD_RECOVERY' && session && session.user) {
     inPasswordResetFlow = true;
     currentUser = session.user;
-    showLoading(false);
+    hideLoading();
     document.getElementById('auth-screen').classList.remove('open');
     showPasswordResetModal();
     return;
   }
-  // Ignorar el SIGNED_IN que Supabase emite internamente al llamar updateUser
-  if (inPasswordResetFlow && event === 'SIGNED_IN') return;
+  // Ignorar eventos de Supabase durante el flujo de reset
+  if (inPasswordResetFlow && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) return;
 
-  if (event === 'SIGNED_IN' && session && session.user) {
-    // Solo actuar si la app no está ya visible (el arranque lo maneja getSession)
-    if (document.getElementById('app').style.display !== 'none') return;
-    currentUser = session.user;
-    showLoading(true);
-    try { await initApp(); } catch(e) { console.error('initApp error:', e); } finally { showLoading(false); }
-  } else if (event === 'SIGNED_OUT') {
+  if (event === 'SIGNED_OUT') {
     inPasswordResetFlow = false;
     currentUser = null;
-    showLoading(false);
+    hideLoading();
     showApp(false);
     document.getElementById('auth-screen').classList.add('open');
   }
+  // SIGNED_IN e INITIAL_SESSION los maneja exclusivamente el bloque getSession() de abajo
 });
 
 function showPasswordResetModal() {
@@ -1215,21 +1210,35 @@ document.getElementById('next').addEventListener('click', () => {
 });
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
-// Comprobar sesión directamente al arrancar (más fiable que esperar solo a onAuthStateChange)
+function hideLoadingShowLogin() {
+  const ov = document.getElementById('loading-overlay');
+  if (ov) ov.style.display = 'none';
+  document.getElementById('auth-screen').classList.add('open');
+}
+function hideLoading() {
+  const ov = document.getElementById('loading-overlay');
+  if (ov) ov.style.display = 'none';
+}
+
+// Timeout de seguridad absoluto: si en 5s no cargó, mostrar login
+const _safetyTimer = setTimeout(hideLoadingShowLogin, 5000);
+
 (async () => {
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (session && session.user) {
       currentUser = session.user;
       await initApp();
+      clearTimeout(_safetyTimer);
+      hideLoading();
     } else {
-      document.getElementById('auth-screen').classList.add('open');
+      clearTimeout(_safetyTimer);
+      hideLoadingShowLogin();
     }
   } catch(e) {
     console.error('getSession error:', e);
-    document.getElementById('auth-screen').classList.add('open');
-  } finally {
-    showLoading(false);
+    clearTimeout(_safetyTimer);
+    hideLoadingShowLogin();
   }
 })();
 </script>
