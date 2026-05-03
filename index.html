@@ -479,12 +479,16 @@ document.getElementById('btn-do-register').addEventListener('click', async () =>
 });
 
 // ─── AUTH STATE ────────────────────────────────────────────────────────────
-// Solo reaccionamos a login explícito del usuario (no a restauración de sesión al cargar)
 sb.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session && session.user && !currentUser) {
+  if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session && session.user) {
+    if (currentUser && currentUser.id === session.user.id) return; // ya inicializado
     currentUser = session.user;
     document.getElementById('auth-screen').classList.remove('open');
     await initApp();
+  } else if (event === 'INITIAL_SESSION' && !session) {
+    // No hay sesión guardada
+    showLoading(false);
+    document.getElementById('auth-screen').classList.add('open');
   } else if (event === 'SIGNED_OUT') {
     currentUser = null;
     showApp(false);
@@ -1027,21 +1031,8 @@ document.getElementById('next').addEventListener('click', () => {
 });
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
-// getSession es la única fuente de verdad al arrancar
+// onAuthStateChange gestiona todo — incluyendo restauración de sesión (INITIAL_SESSION)
 showLoading(true);
-sb.auth.getSession().then(async ({ data: { session } }) => {
-  if (session && session.user) {
-    currentUser = session.user;
-    await initApp();
-  } else {
-    showLoading(false);
-    document.getElementById('auth-screen').classList.add('open');
-  }
-}).catch(e => {
-  console.warn('getSession error:', e);
-  showLoading(false);
-  document.getElementById('auth-screen').classList.add('open');
-});
 </script>
 </body>
 </html>
