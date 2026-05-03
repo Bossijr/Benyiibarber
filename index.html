@@ -495,11 +495,20 @@ async function initApp() {
   showLoading(true);
   const name = currentUser.user_metadata?.name || currentUser.email;
   document.getElementById('header-username').textContent = name.toUpperCase();
+  // Timeout de seguridad: si loadAllData tarda más de 8s, mostramos la app igualmente
+  const timeout = setTimeout(() => {
+    showApp(true);
+    showLoading(false);
+    renderCalendar();
+    renderTimes();
+    renderAppointments();
+  }, 8000);
   try {
     await loadAllData();
   } catch(e) {
     console.warn('loadAllData error:', e);
   }
+  clearTimeout(timeout);
   showApp(true);
   showLoading(false);
   renderCalendar();
@@ -1033,13 +1042,31 @@ showLoading(false);
 document.getElementById('auth-screen').classList.add('open');
 
 // Comprobar sesión en segundo plano
-sb.auth.getSession().then(({ data: { session } }) => {
-  if (session && session.user) {
-    currentUser = session.user;
-    document.getElementById('auth-screen').classList.remove('open');
-    initApp();
+// Timeout por si getSession se queda colgado (sesión corrupta/expirada)
+const sessionTimeout = setTimeout(() => {
+  showLoading(false);
+  document.getElementById('auth-screen').classList.add('open');
+}, 5000);
+
+sb.auth.getSession().then(async ({ data: { session }, error }) => {
+  clearTimeout(sessionTimeout);
+  if (error || !session || !session.user) {
+    // Sesión inválida: limpiar y mostrar login
+    try { await sb.auth.signOut(); } catch(_) {}
+    showLoading(false);
+    document.getElementById('auth-screen').classList.add('open');
+    return;
   }
-}).catch(e => console.warn('getSession error:', e));
+  currentUser = session.user;
+  document.getElementById('auth-screen').classList.remove('open');
+  initApp();
+}).catch(async e => {
+  clearTimeout(sessionTimeout);
+  console.warn('getSession error:', e);
+  try { await sb.auth.signOut(); } catch(_) {}
+  showLoading(false);
+  document.getElementById('auth-screen').classList.add('open');
+});
 </script>
 </body>
 </html>
