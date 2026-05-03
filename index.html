@@ -479,8 +479,9 @@ document.getElementById('btn-do-register').addEventListener('click', async () =>
 });
 
 // ─── AUTH STATE ────────────────────────────────────────────────────────────
+// Solo reaccionamos a login explícito del usuario (no a restauración de sesión al cargar)
 sb.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session && session.user) {
+  if (event === 'SIGNED_IN' && session && session.user && !currentUser) {
     currentUser = session.user;
     document.getElementById('auth-screen').classList.remove('open');
     await initApp();
@@ -495,20 +496,11 @@ async function initApp() {
   showLoading(true);
   const name = currentUser.user_metadata?.name || currentUser.email;
   document.getElementById('header-username').textContent = name.toUpperCase();
-  // Timeout de seguridad: si loadAllData tarda más de 8s, mostramos la app igualmente
-  const timeout = setTimeout(() => {
-    showApp(true);
-    showLoading(false);
-    renderCalendar();
-    renderTimes();
-    renderAppointments();
-  }, 8000);
   try {
     await loadAllData();
   } catch(e) {
     console.warn('loadAllData error:', e);
   }
-  clearTimeout(timeout);
   showApp(true);
   showLoading(false);
   renderCalendar();
@@ -1035,39 +1027,17 @@ document.getElementById('next').addEventListener('click', () => {
 });
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
+// getSession es la única fuente de verdad al arrancar
 showLoading(true);
-
-// Mostrar login directamente, sin esperar a Supabase
-showLoading(false);
-document.getElementById('auth-screen').classList.add('open');
-
-// Comprobar sesión en segundo plano
-// Timeout por si getSession se queda colgado (sesión corrupta/expirada)
-let sessionHandled = false;
-const sessionTimeout = setTimeout(() => {
-  if (!sessionHandled) {
-    sessionHandled = true;
-    showLoading(false);
-    document.getElementById('auth-screen').classList.add('open');
-  }
-}, 5000);
-
-sb.auth.getSession().then(({ data: { session } }) => {
-  if (sessionHandled) return;
-  sessionHandled = true;
-  clearTimeout(sessionTimeout);
+sb.auth.getSession().then(async ({ data: { session } }) => {
   if (session && session.user) {
     currentUser = session.user;
-    document.getElementById('auth-screen').classList.remove('open');
-    initApp();
+    await initApp();
   } else {
     showLoading(false);
     document.getElementById('auth-screen').classList.add('open');
   }
 }).catch(e => {
-  if (sessionHandled) return;
-  sessionHandled = true;
-  clearTimeout(sessionTimeout);
   console.warn('getSession error:', e);
   showLoading(false);
   document.getElementById('auth-screen').classList.add('open');
