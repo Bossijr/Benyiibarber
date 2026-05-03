@@ -230,6 +230,7 @@
   </div>
   <div class="header-user">
     <span class="header-username" id="header-username"></span>
+    <button class="btn-header" id="btn-edit-name">Editar nombre</button>
     <button class="btn-header" id="btn-logout">Cerrar sesión</button>
   </div>
 </div>
@@ -333,6 +334,22 @@
     </div>
     <button class="btn-book" id="btn-login" style="margin-top:0">ENTRAR</button>
     <div id="admin-login-error" style="font-size:12px;color:#884444;margin-top:14px;letter-spacing:1px;display:none">Contraseña incorrecta</div>
+  </div>
+</div>
+
+
+<!-- MODAL EDITAR NOMBRE -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <button class="modal-close" id="edit-modal-close">&times;</button>
+    <div class="modal-title">Tu nombre</div>
+    <div class="modal-sub">Cómo aparecerá en tus citas</div>
+    <div class="form-group">
+      <label class="form-label">Nombre</label>
+      <input class="form-input" id="edit-name-input" type="text" placeholder="Tu nombre completo">
+    </div>
+    <button class="btn-book" id="btn-save-name" style="margin-top:0">GUARDAR</button>
+    <div id="edit-name-error" style="font-size:12px;color:#884444;margin-top:14px;letter-spacing:1px;display:none"></div>
   </div>
 </div>
 
@@ -494,6 +511,46 @@ function showApp(logged) {
   document.getElementById('auth-screen').classList.toggle('open', !logged);
   document.getElementById('app').style.display = logged ? '' : 'none';
 }
+
+// ─── EDIT NAME ─────────────────────────────────────────────────────────────
+document.getElementById('btn-edit-name').addEventListener('click', () => {
+  const current = currentUser.user_metadata?.name || '';
+  document.getElementById('edit-name-input').value = current;
+  document.getElementById('edit-name-error').style.display = 'none';
+  document.getElementById('edit-modal').classList.add('open');
+  setTimeout(() => document.getElementById('edit-name-input').focus(), 100);
+});
+document.getElementById('edit-modal-close').addEventListener('click', () => {
+  document.getElementById('edit-modal').classList.remove('open');
+});
+document.getElementById('edit-modal').addEventListener('click', e => {
+  if (e.target.id === 'edit-modal') document.getElementById('edit-modal').classList.remove('open');
+});
+document.getElementById('edit-name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-save-name').click();
+});
+document.getElementById('btn-save-name').addEventListener('click', async () => {
+  const newName = document.getElementById('edit-name-input').value.trim();
+  if (!newName) { 
+    document.getElementById('edit-name-error').textContent = 'Introduce un nombre';
+    document.getElementById('edit-name-error').style.display = 'block';
+    return;
+  }
+  document.getElementById('btn-save-name').disabled = true;
+  document.getElementById('btn-save-name').textContent = 'GUARDANDO...';
+  const { error } = await sb.auth.updateUser({ data: { name: newName } });
+  document.getElementById('btn-save-name').disabled = false;
+  document.getElementById('btn-save-name').textContent = 'GUARDAR';
+  if (error) {
+    document.getElementById('edit-name-error').textContent = 'Error al guardar. Inténtalo de nuevo.';
+    document.getElementById('edit-name-error').style.display = 'block';
+    return;
+  }
+  currentUser.user_metadata.name = newName;
+  document.getElementById('header-username').textContent = newName.toUpperCase();
+  document.getElementById('edit-modal').classList.remove('open');
+  showToast('Nombre actualizado');
+});
 
 document.getElementById('btn-logout').addEventListener('click', async () => {
   await sb.auth.signOut();
