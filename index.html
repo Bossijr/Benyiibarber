@@ -440,7 +440,7 @@ document.getElementById('btn-login').addEventListener('click', () => {
     state.adminOpen = true;
     document.getElementById('modal-overlay').classList.remove('open');
     document.getElementById('admin-panel').classList.add('open');
-    renderCalendar(); renderTimes(); renderAdminBlockedDays(); renderAdminAvailableTimes();
+    renderCalendar(); renderTimes(); renderAdminBlockedDays(); renderAdminAvailableTimes(); renderAppointments();
     showToast('Panel de barbero activado');
   } else {
     document.getElementById('login-error').style.display = 'block';
@@ -452,7 +452,7 @@ document.getElementById('btn-login').addEventListener('click', () => {
 document.getElementById('admin-logout').addEventListener('click', () => {
   state.adminOpen = false;
   document.getElementById('admin-panel').classList.remove('open');
-  renderCalendar(); renderTimes();
+  renderCalendar(); renderTimes(); renderAppointments();
   showToast('Sesion cerrada');
 });
 
