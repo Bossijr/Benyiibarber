@@ -48,8 +48,11 @@
   .time-slot.selected{background:var(--white);color:var(--black);border-color:var(--white);font-weight:500}
   .time-slot.booked{color:#2a2a2a;cursor:not-allowed;border-color:#1a1a1a}
   .time-slot.blocked{color:#2a2a2a;cursor:not-allowed;text-decoration:line-through;border-color:#1a1a1a}
-  .time-slot.blocked-admin{background:#1a0000;border-color:#3a1010;color:#cc4444;cursor:pointer}
-  .time-slot.blocked-admin:hover{background:#2a0000;border-color:#552020}
+  .time-slot.admin-available{background:#0a1a0a;border-color:#2a5a2a;color:#4a9a4a;cursor:pointer}
+  .time-slot.admin-available:hover{background:#0d2a0d;border-color:#3a7a3a}
+  .time-slot.admin-unavailable{background:#111;border-color:#222;color:#333;cursor:pointer;text-decoration:line-through}
+  .time-slot.admin-unavailable:hover{background:#1a1a1a;border-color:#333;color:#555}
+  .time-slot.admin-available.booked{background:#0a1a0a;border-color:#1a3a1a;color:#336633;cursor:not-allowed}
   .btn-book{width:100%;background:var(--white);color:var(--black);border:none;padding:16px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;cursor:pointer;border-radius:3px;margin-top:24px;transition:all 0.2s}
   .btn-book:hover{background:#e0e0db}
   .btn-book:active{transform:scale(0.99)}
@@ -177,22 +180,10 @@
       </div>
     </div>
     <div>
-      <div class="section-label">Bloquear hora suelta</div>
-      <div class="form-group">
-        <label class="form-label">Fecha</label>
-        <input class="form-input" id="admin-block-time-date" type="date">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Hora</label>
-        <select class="form-input" id="admin-block-time-slot">
-          <option value="">Selecciona hora</option>
-        </select>
-      </div>
-      <button class="btn-admin" id="btn-block-time">+ Bloquear hora</button>
-      <div style="margin-top:28px">
-        <div class="section-label">Horas bloqueadas</div>
-        <div class="blocked-list" id="blocked-times-list"></div>
-      </div>
+      <div class="section-label">Horas disponibles por día</div>
+      <p style="font-size:12px;color:var(--gray);margin-bottom:16px;line-height:1.6">Selecciona un día en el calendario, luego activa o desactiva las horas. <span style="color:#4a9a4a">Verde</span> = disponible · <span style="color:#555">Gris</span> = no disponible.</p>
+      <div id="admin-available-hint" style="font-size:12px;color:#555;font-style:italic;margin-bottom:12px">← Selecciona un día en el calendario para gestionar sus horas</div>
+      <div class="blocked-list" id="available-times-list"></div>
     </div>
   </div>
 </div>
@@ -229,7 +220,7 @@ let state = {
   selectedTime: null,
   appointments: load('bgz_appts', []),
   blockedDays: load('bgz_blocked_days', []),
-  blockedTimes: load('bgz_blocked_times', []),
+  availableTimes: load('bgz_available_times', {}), // { "dateStr": ["09:00","09:30",...] }
   adminOpen: false
 };
 
@@ -241,7 +232,11 @@ function showToast(msg) {
 }
 
 function isDayBlocked(dateStr) { return state.blockedDays.includes(dateStr); }
-function isTimeBlocked(dateStr, time) { return state.blockedTimes.some(b => b.date === dateStr && b.time === time); }
+function hasCustomAvailability(dateStr) { return Object.prototype.hasOwnProperty.call(state.availableTimes, dateStr); }
+function isTimeAvailable(dateStr, time) {
+  if (!hasCustomAvailability(dateStr)) return true;
+  return state.availableTimes[dateStr].includes(time);
+}
 
 function renderCalendar() {
   const d = state.currentDate;
@@ -294,6 +289,7 @@ function renderCalendar() {
       state.selectedDate = new Date(cellDate);
       state.selectedTime = null;
       renderCalendar(); renderTimes();
+      if (state.adminOpen) renderAdminAvailableTimes();
     });
     grid.appendChild(el);
   }
@@ -308,39 +304,52 @@ function renderTimes() {
 
   TIMES.forEach(t => {
     const el = document.createElement('div');
-    const timeBlocked = dateStr ? isTimeBlocked(dateStr, t) : false;
+    const available = dateStr ? isTimeAvailable(dateStr, t) : true;
     let cls = 'time-slot';
-    if (dayBlocked) {
-      cls += state.adminOpen ? ' blocked-admin' : ' blocked';
-    } else if (timeBlocked) {
-      cls += state.adminOpen ? ' blocked-admin' : ' blocked';
-    } else if (bookedTimes.includes(t)) {
-      cls += ' booked';
+    if (state.adminOpen && dateStr) {
+      cls += available ? ' admin-available' : ' admin-unavailable';
+      if (bookedTimes.includes(t)) cls += ' booked';
+    } else {
+      if (dayBlocked || !available) {
+        cls += ' blocked';
+      } else if (bookedTimes.includes(t)) {
+        cls += ' booked';
+      }
     }
-    if (state.selectedTime === t) cls += ' selected';
+    if (!state.adminOpen && state.selectedTime === t) cls += ' selected';
     el.className = cls;
     el.textContent = t;
     el.addEventListener('click', () => {
       if (!dateStr) { showToast('Selecciona primero una fecha'); return; }
-      if (dayBlocked && state.adminOpen) {
-        showToast('El dia entero esta bloqueado. Desbloquea el dia primero.'); return;
-      }
-      if (timeBlocked && state.adminOpen) {
-        if (confirm('Desbloquear ' + t + '?')) {
-          state.blockedTimes = state.blockedTimes.filter(b => !(b.date === dateStr && b.time === t));
-          save('bgz_blocked_times', state.blockedTimes);
-          renderTimes(); renderAdminBlockedTimes();
-          showToast('Hora desbloqueada');
+      if (state.adminOpen) {
+        if (dayBlocked) { showToast('El dia entero esta bloqueado. Desbloquea el dia primero.'); return; }
+        if (bookedTimes.includes(t)) { showToast('Esta hora ya tiene una cita reservada'); return; }
+        if (!hasCustomAvailability(dateStr)) {
+          state.availableTimes[dateStr] = [...TIMES];
         }
+        if (state.availableTimes[dateStr].includes(t)) {
+          state.availableTimes[dateStr] = state.availableTimes[dateStr].filter(h => h !== t);
+          showToast(t + ' — no disponible');
+        } else {
+          state.availableTimes[dateStr].push(t);
+          state.availableTimes[dateStr].sort();
+          showToast(t + ' — disponible');
+        }
+        if (state.availableTimes[dateStr].length === TIMES.length) {
+          delete state.availableTimes[dateStr];
+        }
+        save('bgz_available_times', state.availableTimes);
+        renderTimes(); renderAdminAvailableTimes();
         return;
       }
-      if (dayBlocked || timeBlocked || bookedTimes.includes(t)) return;
+      if (dayBlocked || !available || bookedTimes.includes(t)) return;
       state.selectedTime = t;
       renderTimes();
     });
     grid.appendChild(el);
   });
 }
+
 
 function formatDateDisplay(dateStr) {
   const d = new Date(dateStr);
@@ -385,7 +394,7 @@ document.getElementById('btn-book').addEventListener('click', () => {
   if (!state.selectedDate) { showToast('Selecciona una fecha'); return; }
   if (isDayBlocked(state.selectedDate.toDateString())) { showToast('Este dia no esta disponible'); return; }
   if (!state.selectedTime) { showToast('Selecciona una hora'); return; }
-  if (isTimeBlocked(state.selectedDate.toDateString(), state.selectedTime)) { showToast('Esta hora no esta disponible'); return; }
+  if (!isTimeAvailable(state.selectedDate.toDateString(), state.selectedTime)) { showToast('Esta hora no esta disponible'); return; }
   if (!name) { showToast('Introduce tu nombre'); return; }
   state.appointments.push({ date: state.selectedDate.toDateString(), time: state.selectedTime, name, notes: document.getElementById('inp-notes').value.trim() });
   save('bgz_appts', state.appointments);
@@ -431,7 +440,7 @@ document.getElementById('btn-login').addEventListener('click', () => {
     state.adminOpen = true;
     document.getElementById('modal-overlay').classList.remove('open');
     document.getElementById('admin-panel').classList.add('open');
-    renderCalendar(); renderTimes(); renderAdminBlockedDays(); renderAdminBlockedTimes();
+    renderCalendar(); renderTimes(); renderAdminBlockedDays(); renderAdminAvailableTimes();
     showToast('Panel de barbero activado');
   } else {
     document.getElementById('login-error').style.display = 'block';
@@ -486,23 +495,58 @@ document.getElementById('btn-block-range').addEventListener('click', () => {
   document.getElementById('admin-range-to').value = '';
 });
 
-/* BLOCK TIME */
-const tSel = document.getElementById('admin-block-time-slot');
-TIMES.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; tSel.appendChild(o); });
-
-document.getElementById('btn-block-time').addEventListener('click', () => {
-  const dv = document.getElementById('admin-block-time-date').value;
-  const tv = document.getElementById('admin-block-time-slot').value;
-  if (!dv || !tv) { showToast('Selecciona fecha y hora'); return; }
-  const dateStr = new Date(dv + 'T12:00:00').toDateString();
-  if (state.blockedTimes.some(b => b.date === dateStr && b.time === tv)) { showToast('Esta hora ya esta bloqueada'); return; }
-  state.blockedTimes.push({ date: dateStr, time: tv });
-  save('bgz_blocked_times', state.blockedTimes);
-  renderTimes(); renderAdminBlockedTimes();
-  showToast('Hora bloqueada');
-  document.getElementById('admin-block-time-date').value = '';
-  document.getElementById('admin-block-time-slot').value = '';
-});
+/* AVAILABLE TIMES PER DAY — admin panel right column */
+function renderAdminAvailableTimes() {
+  const list = document.getElementById('available-times-list');
+  const hint = document.getElementById('admin-available-hint');
+  const dateStr = state.selectedDate ? state.selectedDate.toDateString() : null;
+  if (!dateStr) {
+    list.innerHTML = '';
+    if (hint) hint.style.display = 'block';
+    return;
+  }
+  if (hint) hint.style.display = 'none';
+  const bookedTimes = state.appointments.filter(a => a.date === dateStr).map(a => a.time);
+  list.innerHTML = '';
+  TIMES.forEach(t => {
+    const avail = isTimeAvailable(dateStr, t);
+    const booked = bookedTimes.includes(t);
+    const el = document.createElement('div');
+    el.className = 'blocked-item';
+    el.style.opacity = booked ? '0.5' : '1';
+    el.innerHTML =
+      '<span class="blocked-item-label" style="display:flex;align-items:center;gap:8px">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:' + (avail ? '#4a9a4a' : '#444') + ';flex-shrink:0"></span>' +
+      t + (booked ? ' <span style="font-size:10px;color:#666">(reservada)</span>' : '') + '</span>' +
+      (booked ? '' : '<button class="blocked-item-remove" data-time="' + t + '" style="color:' + (avail ? '#4a9a4a' : '#555') + ';font-size:13px;letter-spacing:1px">' + (avail ? 'ON' : 'OFF') + '</button>');
+    if (!booked) {
+      el.querySelector('.blocked-item-remove').addEventListener('click', () => {
+        if (!hasCustomAvailability(dateStr)) {
+          state.availableTimes[dateStr] = [...TIMES];
+        }
+        if (state.availableTimes[dateStr].includes(t)) {
+          state.availableTimes[dateStr] = state.availableTimes[dateStr].filter(h => h !== t);
+        } else {
+          state.availableTimes[dateStr].push(t);
+          state.availableTimes[dateStr].sort();
+        }
+        if (state.availableTimes[dateStr].length === TIMES.length) {
+          delete state.availableTimes[dateStr];
+        }
+        save('bgz_available_times', state.availableTimes);
+        renderTimes(); renderAdminAvailableTimes();
+      });
+    }
+    list.appendChild(el);
+  });
+  // Summary line
+  const customized = hasCustomAvailability(dateStr);
+  const count = customized ? state.availableTimes[dateStr].length : TIMES.length;
+  const summary = document.createElement('div');
+  summary.style.cssText = 'font-size:11px;color:#555;padding:8px 4px;letter-spacing:1px';
+  summary.textContent = count + ' de ' + TIMES.length + ' horas disponibles' + (customized ? '' : ' (por defecto)');
+  list.appendChild(summary);
+}
 
 function renderAdminBlockedDays() {
   const list = document.getElementById('blocked-days-list');
@@ -524,26 +568,6 @@ function renderAdminBlockedDays() {
   });
 }
 
-function renderAdminBlockedTimes() {
-  const list = document.getElementById('blocked-times-list');
-  const sorted = [...state.blockedTimes].sort((a,b) => new Date(a.date)-new Date(b.date) || a.time.localeCompare(b.time));
-  if (!sorted.length) { list.innerHTML = '<div style="font-size:12px;color:#333;padding:8px 0">Sin horas bloqueadas</div>'; return; }
-  list.innerHTML = '';
-  sorted.forEach((b, i) => {
-    const el = document.createElement('div'); el.className = 'blocked-item';
-    el.innerHTML = '<span class="blocked-item-label">' + formatDateDisplay(b.date) + ' — ' + b.time + '</span><button class="blocked-item-remove" data-idx="' + i + '">&times;</button>';
-    list.appendChild(el);
-  });
-  list.querySelectorAll('.blocked-item-remove').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = sorted[parseInt(btn.dataset.idx)];
-      state.blockedTimes = state.blockedTimes.filter(b => !(b.date === target.date && b.time === target.time));
-      save('bgz_blocked_times', state.blockedTimes);
-      renderTimes(); renderAdminBlockedTimes();
-      showToast('Hora desbloqueada');
-    });
-  });
-}
 
 renderCalendar();
 renderTimes();
