@@ -539,7 +539,6 @@ let inPasswordResetFlow = false;
 
 sb.auth.onAuthStateChange(async (event, session) => {
   if (event === 'PASSWORD_RECOVERY' && session && session.user) {
-    // Usuario viene del enlace de reset: mostrar modal de nueva contraseña
     inPasswordResetFlow = true;
     currentUser = session.user;
     showLoading(false);
@@ -547,22 +546,15 @@ sb.auth.onAuthStateChange(async (event, session) => {
     showPasswordResetModal();
     return;
   }
-
   // Ignorar el SIGNED_IN que Supabase emite internamente al llamar updateUser
-  // (solo mientras el modal de reset sigue abierto, i.e. aún no se ha guardado)
   if (inPasswordResetFlow && event === 'SIGNED_IN') return;
 
-  if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session && session.user) {
-    // Evitar reinicializar si ya es el mismo usuario y la app ya está visible
-    if (currentUser && currentUser.id === session.user.id && document.getElementById('app').style.display !== 'none') return;
+  if (event === 'SIGNED_IN' && session && session.user) {
+    // Solo actuar si la app no está ya visible (el arranque lo maneja getSession)
+    if (document.getElementById('app').style.display !== 'none') return;
     currentUser = session.user;
     showLoading(true);
-    await initApp();
-    showLoading(false);
-  } else if (event === 'INITIAL_SESSION' && !session) {
-    // No hay sesión guardada: mostrar pantalla de login
-    showLoading(false);
-    document.getElementById('auth-screen').classList.add('open');
+    try { await initApp(); } catch(e) { console.error('initApp error:', e); } finally { showLoading(false); }
   } else if (event === 'SIGNED_OUT') {
     inPasswordResetFlow = false;
     currentUser = null;
@@ -1223,8 +1215,24 @@ document.getElementById('next').addEventListener('click', () => {
 });
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
-// Mostrar loading hasta que onAuthStateChange resuelva si hay sesión activa o no
+// Comprobar sesión directamente al arrancar (más fiable que esperar solo a onAuthStateChange)
 showLoading(true);
+(async () => {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && session.user) {
+      currentUser = session.user;
+      await initApp();
+    } else {
+      document.getElementById('auth-screen').classList.add('open');
+    }
+  } catch(e) {
+    console.error('getSession error:', e);
+    document.getElementById('auth-screen').classList.add('open');
+  } finally {
+    showLoading(false);
+  }
+})();
 </script>
 </body>
 </html>
