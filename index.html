@@ -767,7 +767,7 @@ function renderAppointments() {
     el.className = 'appt-card';
     el.innerHTML =
       '<div><div class="appt-date">' + formatDateDisplay(appt.date) + '</div>' +
-      (state.adminOpen ? '<div class="appt-meta">' + (appt.name || 'Cliente') + '</div>' : '') +
+      (state.adminOpen ? '<div class="appt-meta">' + getApptDisplayName(appt) + '</div>' : '') +
       (state.adminOpen && appt.notes ? '<div class="appt-meta" style="font-style:italic;margin-top:2px">' + appt.notes + '</div>' : '') +
       (!state.adminOpen && appt.notes ? '<div class="appt-meta">' + appt.notes + '</div>' : '') + '</div>' +
       '<div style="display:flex;align-items:center;gap:8px">' +
@@ -934,6 +934,18 @@ function renderAdminAvailableTimes() {
   list.appendChild(summary);
 }
 
+// ─── HELPER: nombre a mostrar para una cita ────────────────────────────────
+function getApptDisplayName(appt) {
+  if (appt.name && appt.name.trim()) return appt.name.trim();
+  // Buscar en allAppointments si hay otro registro del mismo usuario con nombre
+  if (appt.user_id && state.allAppointments) {
+    const other = state.allAppointments.find(a => a.user_id === appt.user_id && a.name && a.name.trim());
+    if (other) return other.name.trim();
+  }
+  // Último recurso: ID de usuario abreviado
+  return appt.user_id ? 'Usuario #' + appt.user_id.slice(0,6) : 'Sin nombre';
+}
+
 // ─── DAY VIEW (ADMIN) ──────────────────────────────────────────────────────
 let dayViewDate = new Date(); dayViewDate.setHours(0,0,0,0);
 
@@ -969,7 +981,7 @@ function renderDayView() {
       '<div class="day-slot-dot" style="' + (isBlock ? 'align-self:stretch;width:2px;border-radius:1px;background:#333;margin:2px 2px' : '') + '"></div>' +
       '<div style="flex:1">' +
         (appt
-          ? '<div class="day-slot-name">' + (appt.name || 'Cliente') + '</div>' +
+          ? '<div class="day-slot-name">' + getApptDisplayName(appt) + '</div>' +
             (appt.notes ? '<div class="day-slot-notes">' + appt.notes + '</div>' : '')
           : '<div class="day-slot-name" style="font-size:11px;color:#333;letter-spacing:1px">' + (available ? 'libre' : 'no disponible') + '</div>') +
       '</div>' +
