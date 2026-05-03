@@ -189,6 +189,23 @@
       </div>
       <button class="btn-book" id="btn-do-login" style="margin-top:0">ENTRAR</button>
       <div class="auth-error" id="login-error"></div>
+      <div style="text-align:center;margin-top:14px">
+        <button type="button" id="btn-forgot" style="background:none;border:none;color:#555;font-family:'DM Sans',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;transition:color 0.2s" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">¿Olvidaste tu contraseña?</button>
+      </div>
+    </div>
+
+    <!-- RESET PASSWORD -->
+    <div id="form-reset" style="display:none">
+      <div class="auth-hint" style="margin-bottom:20px;color:#666">Introduce tu email y te enviaremos un enlace para restablecer tu contraseña.</div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" id="auth-reset-email" type="email" placeholder="tu@email.com" autocomplete="email">
+      </div>
+      <button class="btn-book" id="btn-do-reset" style="margin-top:0">ENVIAR ENLACE</button>
+      <div class="auth-error" id="reset-error"></div>
+      <div style="text-align:center;margin-top:14px">
+        <button type="button" id="btn-back-login" style="background:none;border:none;color:#555;font-family:'DM Sans',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;transition:color 0.2s" onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">Volver al inicio de sesión</button>
+      </div>
     </div>
 
     <!-- REGISTER -->
@@ -478,8 +495,53 @@ document.getElementById('btn-do-register').addEventListener('click', async () =>
   document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('btn-do-register').click(); });
 });
 
+// ─── FORGOT PASSWORD ───────────────────────────────────────────────────────
+document.getElementById('btn-forgot').addEventListener('click', () => {
+  const email = document.getElementById('auth-login-email').value.trim();
+  if (email) document.getElementById('auth-reset-email').value = email;
+  document.getElementById('form-login').style.display = 'none';
+  document.getElementById('form-reset').style.display = '';
+  document.getElementById('reset-error').textContent = '';
+  document.getElementById('reset-error').style.color = '#884444';
+  setTimeout(() => document.getElementById('auth-reset-email').focus(), 100);
+});
+
+document.getElementById('btn-back-login').addEventListener('click', () => {
+  document.getElementById('form-reset').style.display = 'none';
+  document.getElementById('form-login').style.display = '';
+});
+
+document.getElementById('btn-do-reset').addEventListener('click', async () => {
+  const email = document.getElementById('auth-reset-email').value.trim();
+  if (!email) { document.getElementById('reset-error').textContent = 'Introduce tu email'; return; }
+  document.getElementById('btn-do-reset').disabled = true;
+  document.getElementById('btn-do-reset').textContent = 'ENVIANDO...';
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.href
+  });
+  document.getElementById('btn-do-reset').disabled = false;
+  document.getElementById('btn-do-reset').textContent = 'ENVIAR ENLACE';
+  if (error) {
+    document.getElementById('reset-error').style.color = '#884444';
+    document.getElementById('reset-error').textContent = 'Error al enviar. Comprueba el email.';
+  } else {
+    document.getElementById('reset-error').style.color = '#4a9a4a';
+    document.getElementById('reset-error').textContent = '¡Enlace enviado! Revisa tu bandeja de entrada.';
+  }
+});
+
+document.getElementById('auth-reset-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-do-reset').click();
+});
+
 // ─── AUTH STATE ────────────────────────────────────────────────────────────
 sb.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    // Usuario viene del enlace de reset — mostrar modal para nueva contraseña
+    document.getElementById('auth-screen').classList.remove('open');
+    showPasswordResetModal();
+    return;
+  }
   if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session && session.user) {
     if (currentUser && currentUser.id === session.user.id) return; // ya inicializado
     currentUser = session.user;
@@ -492,6 +554,49 @@ sb.auth.onAuthStateChange(async (event, session) => {
     document.getElementById('auth-screen').classList.add('open');
   }
 });
+
+function showPasswordResetModal() {
+  // Crear modal de nueva contraseña si no existe
+  if (document.getElementById('reset-modal')) { document.getElementById('reset-modal').classList.add('open'); return; }
+  const modal = document.createElement('div');
+  modal.id = 'reset-modal';
+  modal.className = 'modal-overlay open';
+  modal.innerHTML =
+    '<div class="modal">' +
+      '<div class="modal-title">Nueva contraseña</div>' +
+      '<div class="modal-sub">ELIGE UNA CONTRASEÑA SEGURA</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Nueva contraseña</label>' +
+        '<div class="pass-wrap">' +
+          '<input class="form-input" id="new-pass-input" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password">' +
+          '<button class="eye-btn" type="button" onclick="toggleEye('new-pass-input',this)" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>' +
+        '</div>' +
+      '</div>' +
+      '<button class="btn-book" id="btn-save-new-pass" style="margin-top:8px">GUARDAR CONTRASEÑA</button>' +
+      '<div class="auth-error" id="new-pass-error" style="min-height:18px;margin-top:10px"></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('new-pass-input').focus(), 100);
+  document.getElementById('new-pass-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btn-save-new-pass').click();
+  });
+  document.getElementById('btn-save-new-pass').addEventListener('click', async () => {
+    const pass = document.getElementById('new-pass-input').value;
+    if (pass.length < 6) { document.getElementById('new-pass-error').textContent = 'Mínimo 6 caracteres'; return; }
+    document.getElementById('btn-save-new-pass').disabled = true;
+    document.getElementById('btn-save-new-pass').textContent = 'GUARDANDO...';
+    const { error } = await sb.auth.updateUser({ password: pass });
+    document.getElementById('btn-save-new-pass').disabled = false;
+    document.getElementById('btn-save-new-pass').textContent = 'GUARDAR CONTRASEÑA';
+    if (error) {
+      document.getElementById('new-pass-error').textContent = 'Error al guardar. Inténtalo de nuevo.';
+    } else {
+      modal.remove();
+      showToast('Contraseña actualizada. ¡Ya puedes entrar!');
+      await initApp();
+    }
+  });
+}
 
 async function initApp() {
   // Mostramos la app inmediatamente sin overlay, cargamos datos en segundo plano
