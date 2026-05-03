@@ -155,7 +155,7 @@
     </div>
     <button class="btn-book" id="btn-book">CONFIRMAR CITA</button>
     <div class="divider"></div>
-    <div class="section-label">Próximas citas</div>
+    <div class="section-label" id="appt-list-label">Mis citas</div>
     <div class="appointments-list" id="appt-list"></div>
   </div>
 </div>
@@ -390,6 +390,8 @@ function formatDateDisplay(dateStr) {
 
 function renderAppointments() {
   const list = document.getElementById('appt-list');
+  const lbl = document.getElementById('appt-list-label');
+  if (lbl) lbl.textContent = state.adminOpen ? 'Próximas citas' : 'Mis citas';
   const upcoming = state.appointments
     .filter(a => new Date(a.date) >= new Date(new Date().toDateString()))
     .sort((a,b) => new Date(a.date) - new Date(b.date));
