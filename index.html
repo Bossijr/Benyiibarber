@@ -269,7 +269,7 @@
       <div class="admin-title">Panel barbero</div>
       <div class="admin-badge">ADMIN</div>
     </div>
-    <button class="admin-logout" id="admin-logout">Cerrar panel</button>
+    <div style="display:flex;align-items:center;gap:16px"><span id="admin-uid-display" style="font-size:10px;color:#333;letter-spacing:1px;font-family:monospace"></span><button class="admin-logout" id="admin-logout">Cerrar panel</button></div>
   </div>
   <div class="day-view" id="day-view">
     <div class="day-view-header">
@@ -824,6 +824,7 @@ document.getElementById('btn-login').addEventListener('click', async () => {
     state.adminOpen = true;
     document.getElementById('modal-overlay').classList.remove('open');
     document.getElementById('admin-panel').classList.add('open');
+    document.getElementById('admin-uid-display').textContent = 'Tu user_id: ' + currentUser.id;
     await loadAllData();
     renderCalendar(); renderTimes(); renderAdminBlockedDays(); renderAdminAvailableTimes(); renderAppointments(); renderDayView();
     showToast('Panel de barbero activado');
