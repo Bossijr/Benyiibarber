@@ -577,7 +577,7 @@ async function loadAllData() {
 
   // Load ALL appointments for occupied time check
   try {
-    const { data: allAppts } = await sb.from('appointments').select('date,time,end_time');
+    const { data: allAppts } = await sb.from('appointments').select('date,time,end_time,name,notes,id,user_id');
     state.allAppointments = allAppts || [];
   } catch(e) { state.allAppointments = []; }
 
