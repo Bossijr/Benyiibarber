@@ -90,6 +90,22 @@
   .admin-logout{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#333;cursor:pointer;background:none;border:none;transition:color 0.2s}
   .admin-logout:hover{color:var(--gray)}
   select.form-input option{background:#111;color:var(--white)}
+  .day-view{background:#080808;border:1px solid #1e1e1e;border-radius:4px;padding:24px;margin-bottom:32px}
+  .day-view-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+  .day-view-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px}
+  .day-view-subtitle{font-size:11px;color:var(--gray);letter-spacing:2px;text-transform:uppercase;margin-top:2px}
+  .day-timeline{display:flex;flex-direction:column;gap:4px}
+  .day-slot{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:3px;border:1px solid transparent}
+  .day-slot.slot-booked{background:#0f0f0f;border-color:#222}
+  .day-slot.slot-available{opacity:0.3}
+  .day-slot.slot-unavailable{opacity:0.15}
+  .day-slot-time{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--gray);width:48px;flex-shrink:0}
+  .day-slot-name{font-size:13px;color:var(--white);flex:1}
+  .day-slot-notes{font-size:11px;color:var(--gray);font-style:italic}
+  .day-slot-dot{width:6px;height:6px;border-radius:50%;background:#333;flex-shrink:0}
+  .day-slot.slot-booked .day-slot-dot{background:var(--white)}
+  .day-slot.slot-unavailable .day-slot-dot{background:#1a1a1a}
+  .day-nav{display:flex;align-items:center;gap:10px}
   @media(max-width:700px){
     .main{grid-template-columns:1fr}
     .left-panel{border-right:none;border-bottom:1px solid #222;padding:32px 20px}
@@ -151,6 +167,20 @@
       <div class="admin-badge">ADMIN</div>
     </div>
     <button class="admin-logout" id="admin-logout">Cerrar sesión</button>
+  </div>
+  <!-- DAY VIEW -->
+  <div class="day-view" id="day-view">
+    <div class="day-view-header">
+      <div>
+        <div class="day-view-title" id="day-view-title">HOY</div>
+        <div class="day-view-subtitle" id="day-view-subtitle"></div>
+      </div>
+      <div class="day-nav">
+        <button class="cal-nav" id="day-prev">&#8592;</button>
+        <button class="cal-nav" id="day-next">&#8594;</button>
+      </div>
+    </div>
+    <div class="day-timeline" id="day-timeline"></div>
   </div>
   <div class="admin-grid">
     <div>
@@ -440,7 +470,7 @@ document.getElementById('btn-login').addEventListener('click', () => {
     state.adminOpen = true;
     document.getElementById('modal-overlay').classList.remove('open');
     document.getElementById('admin-panel').classList.add('open');
-    renderCalendar(); renderTimes(); renderAdminBlockedDays(); renderAdminAvailableTimes(); renderAppointments();
+    renderCalendar(); renderTimes(); renderAdminBlockedDays(); renderAdminAvailableTimes(); renderAppointments(); renderDayView();
     showToast('Panel de barbero activado');
   } else {
     document.getElementById('login-error').style.display = 'block';
@@ -585,6 +615,77 @@ function renderAdminBlockedDays() {
   });
 }
 
+
+/* DAY VIEW */
+let dayViewDate = new Date();
+dayViewDate.setHours(0,0,0,0);
+
+const WEEK_DAYS_FULL = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+function renderDayView() {
+  const dateStr = dayViewDate.toDateString();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diffDays = Math.round((dayViewDate - today) / (1000*60*60*24));
+  let label;
+  if (diffDays === 0) label = 'Hoy';
+  else if (diffDays === 1) label = 'Mañana';
+  else if (diffDays === -1) label = 'Ayer';
+  else label = WEEK_DAYS_FULL[dayViewDate.getDay()];
+
+  document.getElementById('day-view-title').textContent = label.toUpperCase() + ' — ' + formatDateDisplay(dateStr) + ' ' + dayViewDate.getFullYear();
+  const blocked = isDayBlocked(dateStr);
+  document.getElementById('day-view-subtitle').textContent = blocked ? 'DÍA BLOQUEADO' : '';
+  document.getElementById('day-view-subtitle').style.color = blocked ? '#cc4444' : 'var(--gray)';
+
+  const appts = state.appointments.filter(a => a.date === dateStr);
+  const timeline = document.getElementById('day-timeline');
+  timeline.innerHTML = '';
+
+  TIMES.forEach(t => {
+    const appt = appts.find(a => a.time === t);
+    const available = !blocked && isTimeAvailable(dateStr, t);
+    const el = document.createElement('div');
+    el.className = 'day-slot ' + (appt ? 'slot-booked' : available ? 'slot-available' : 'slot-unavailable');
+    el.innerHTML =
+      '<div class="day-slot-time">' + t + '</div>' +
+      '<div class="day-slot-dot"></div>' +
+      '<div style="flex:1">' +
+        (appt
+          ? '<div class="day-slot-name">' + appt.name + '</div>' +
+            (appt.notes ? '<div class="day-slot-notes">' + appt.notes + '</div>' : '')
+          : '<div class="day-slot-name" style="font-size:11px;color:#333;letter-spacing:1px">' + (available ? 'libre' : 'no disponible') + '</div>') +
+      '</div>' +
+      (appt ? '<button class="appt-remove" data-date="' + appt.date + '" data-time="' + appt.time + '" style="opacity:0.4">&times;</button>' : '');
+    if (appt) {
+      el.querySelector('.appt-remove').addEventListener('click', () => {
+        const gi = state.appointments.findIndex(a => a.date === appt.date && a.time === appt.time);
+        if (gi !== -1) {
+          state.appointments.splice(gi, 1);
+          save('bgz_appts', state.appointments);
+          renderCalendar(); renderTimes(); renderAppointments(); renderDayView();
+          showToast('Cita cancelada');
+        }
+      });
+    }
+    timeline.appendChild(el);
+  });
+
+  // Summary
+  const total = appts.length;
+  const summary = document.createElement('div');
+  summary.style.cssText = 'font-size:11px;color:#444;padding:12px 4px 0;letter-spacing:1px;border-top:1px solid #1a1a1a;margin-top:8px';
+  summary.textContent = total > 0 ? total + ' cita' + (total > 1 ? 's' : '') + ' reservada' + (total > 1 ? 's' : '') : 'Sin citas para este día';
+  timeline.appendChild(summary);
+}
+
+document.getElementById('day-prev').addEventListener('click', () => {
+  dayViewDate.setDate(dayViewDate.getDate() - 1);
+  renderDayView();
+});
+document.getElementById('day-next').addEventListener('click', () => {
+  dayViewDate.setDate(dayViewDate.getDate() + 1);
+  renderDayView();
+});
 
 renderCalendar();
 renderTimes();
