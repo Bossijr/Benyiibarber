@@ -535,14 +535,20 @@ document.getElementById('auth-reset-email').addEventListener('keydown', e => {
 });
 
 // ─── AUTH STATE ────────────────────────────────────────────────────────────
+let inPasswordResetFlow = false;
+
 sb.auth.onAuthStateChange(async (event, session) => {
   if (event === 'PASSWORD_RECOVERY' && session && session.user) {
-    // Usuario viene del enlace de reset: guardar sesión y mostrar modal
+    // Usuario viene del enlace de reset: mostrar modal de nueva contraseña
+    inPasswordResetFlow = true;
     currentUser = session.user;
     document.getElementById('auth-screen').classList.remove('open');
     showPasswordResetModal();
     return;
   }
+  // Ignorar el SIGNED_IN que Supabase emite internamente al llamar updateUser
+  // para evitar que la app se inicialice mientras el modal sigue abierto
+  if (inPasswordResetFlow && event === 'SIGNED_IN') return;
   if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session && session.user) {
     if (currentUser && currentUser.id === session.user.id) return; // ya inicializado
     currentUser = session.user;
@@ -550,6 +556,7 @@ sb.auth.onAuthStateChange(async (event, session) => {
   } else if (event === 'INITIAL_SESSION' && !session) {
     // No hay sesión — ya estamos mostrando el login, no hace falta hacer nada
   } else if (event === 'SIGNED_OUT') {
+    inPasswordResetFlow = false;
     currentUser = null;
     showApp(false);
     document.getElementById('auth-screen').classList.add('open');
@@ -594,17 +601,20 @@ function showPasswordResetModal() {
     if (error) {
       document.getElementById('new-pass-error').textContent = 'Error: ' + error.message;
     } else {
+      showToast('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
       modal.remove();
       currentUser = null;
       state.appointments = [];
       state.allAppointments = [];
       showApp(false);
+      // Pequeña pausa para que Supabase propague el cambio de contraseña
+      // antes de cerrar sesión, evitando tokens en estado inconsistente
+      await new Promise(r => setTimeout(r, 800));
       await sb.auth.signOut();
       document.getElementById('auth-screen').classList.add('open');
       document.getElementById('auth-login-email').value = '';
       document.getElementById('auth-login-pass').value = '';
       document.getElementById('reset-error') && (document.getElementById('reset-error').textContent = '');
-      showToast('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
     }
   });
 }
