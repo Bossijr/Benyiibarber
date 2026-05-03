@@ -501,7 +501,10 @@ async function initApp() {
   const name = currentUser.user_metadata?.name || currentUser.email;
   document.getElementById('header-username').textContent = name.toUpperCase();
   try {
-    await loadAllData();
+    await Promise.race([
+      loadAllData(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
+    ]);
   } catch(e) {
     console.warn('loadAllData error:', e);
   }
