@@ -588,11 +588,12 @@ function showPasswordResetModal() {
     if (pass.length < 6) { document.getElementById('new-pass-error').textContent = 'Mínimo 6 caracteres'; return; }
     document.getElementById('btn-save-new-pass').disabled = true;
     document.getElementById('btn-save-new-pass').textContent = 'GUARDANDO...';
-    const { error } = await sb.auth.updateUser({ password: pass });
+    const { data: updateData, error } = await sb.auth.updateUser({ password: pass });
     document.getElementById('btn-save-new-pass').disabled = false;
     document.getElementById('btn-save-new-pass').textContent = 'GUARDAR CONTRASEÑA';
+    console.log('updateUser result:', JSON.stringify(updateData), 'error:', error);
     if (error) {
-      document.getElementById('new-pass-error').textContent = 'Error al guardar. Inténtalo de nuevo.';
+      document.getElementById('new-pass-error').textContent = 'Error: ' + error.message;
     } else {
       modal.remove();
       // La sesión ya es válida tras updateUser — entramos directamente
