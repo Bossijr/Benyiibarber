@@ -1043,27 +1043,32 @@ document.getElementById('auth-screen').classList.add('open');
 
 // Comprobar sesión en segundo plano
 // Timeout por si getSession se queda colgado (sesión corrupta/expirada)
+let sessionHandled = false;
 const sessionTimeout = setTimeout(() => {
-  showLoading(false);
-  document.getElementById('auth-screen').classList.add('open');
-}, 5000);
-
-sb.auth.getSession().then(async ({ data: { session }, error }) => {
-  clearTimeout(sessionTimeout);
-  if (error || !session || !session.user) {
-    // Sesión inválida: limpiar y mostrar login
-    try { await sb.auth.signOut(); } catch(_) {}
+  if (!sessionHandled) {
+    sessionHandled = true;
     showLoading(false);
     document.getElementById('auth-screen').classList.add('open');
-    return;
   }
-  currentUser = session.user;
-  document.getElementById('auth-screen').classList.remove('open');
-  initApp();
-}).catch(async e => {
+}, 5000);
+
+sb.auth.getSession().then(({ data: { session } }) => {
+  if (sessionHandled) return;
+  sessionHandled = true;
+  clearTimeout(sessionTimeout);
+  if (session && session.user) {
+    currentUser = session.user;
+    document.getElementById('auth-screen').classList.remove('open');
+    initApp();
+  } else {
+    showLoading(false);
+    document.getElementById('auth-screen').classList.add('open');
+  }
+}).catch(e => {
+  if (sessionHandled) return;
+  sessionHandled = true;
   clearTimeout(sessionTimeout);
   console.warn('getSession error:', e);
-  try { await sb.auth.signOut(); } catch(_) {}
   showLoading(false);
   document.getElementById('auth-screen').classList.add('open');
 });
