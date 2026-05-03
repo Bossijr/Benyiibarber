@@ -588,26 +588,23 @@ function showPasswordResetModal() {
     if (pass.length < 6) { document.getElementById('new-pass-error').textContent = 'Mínimo 6 caracteres'; return; }
     document.getElementById('btn-save-new-pass').disabled = true;
     document.getElementById('btn-save-new-pass').textContent = 'GUARDANDO...';
-    const { data: updateData, error } = await sb.auth.updateUser({ password: pass });
+    const { error } = await sb.auth.updateUser({ password: pass });
     document.getElementById('btn-save-new-pass').disabled = false;
     document.getElementById('btn-save-new-pass').textContent = 'GUARDAR CONTRASEÑA';
-    console.log('updateUser result:', JSON.stringify(updateData), 'error:', error);
     if (error) {
       document.getElementById('new-pass-error').textContent = 'Error: ' + error.message;
     } else {
       modal.remove();
-      // La sesión ya es válida tras updateUser — entramos directamente
-      const { data: { session } } = await sb.auth.getSession();
-      if (session && session.user) {
-        currentUser = session.user;
-        showToast('Contraseña actualizada correctamente.');
-        await initApp();
-      } else {
-        // Fallback: pedir login manual
-        showApp(false);
-        document.getElementById('auth-screen').classList.add('open');
-        showToast('Contraseña actualizada. Inicia sesión.');
-      }
+      currentUser = null;
+      state.appointments = [];
+      state.allAppointments = [];
+      showApp(false);
+      await sb.auth.signOut();
+      document.getElementById('auth-screen').classList.add('open');
+      document.getElementById('auth-login-email').value = '';
+      document.getElementById('auth-login-pass').value = '';
+      document.getElementById('reset-error') && (document.getElementById('reset-error').textContent = '');
+      showToast('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
     }
   });
 }
