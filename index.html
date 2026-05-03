@@ -158,6 +158,20 @@
       </div>
       <button class="btn-admin" id="btn-block-day">+ Bloquear día</button>
       <div style="margin-top:28px">
+        <div class="section-label">Bloquear rango de días</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Desde</label>
+            <input class="form-input" id="admin-range-from" type="date">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Hasta</label>
+            <input class="form-input" id="admin-range-to" type="date">
+          </div>
+        </div>
+        <button class="btn-admin" id="btn-block-range">+ Bloquear rango</button>
+      </div>
+      <div style="margin-top:28px">
         <div class="section-label">Días bloqueados</div>
         <div class="blocked-list" id="blocked-days-list"></div>
       </div>
@@ -444,6 +458,32 @@ document.getElementById('btn-block-day').addEventListener('click', () => {
   renderCalendar(); renderTimes(); renderAdminBlockedDays();
   showToast('Dia bloqueado');
   document.getElementById('admin-block-date').value = '';
+});
+
+/* BLOCK RANGE */
+document.getElementById('btn-block-range').addEventListener('click', () => {
+  const fromVal = document.getElementById('admin-range-from').value;
+  const toVal   = document.getElementById('admin-range-to').value;
+  if (!fromVal || !toVal) { showToast('Selecciona fecha de inicio y fin'); return; }
+  const fromDate = new Date(fromVal + 'T12:00:00');
+  const toDate   = new Date(toVal   + 'T12:00:00');
+  if (toDate < fromDate) { showToast('La fecha fin debe ser igual o posterior al inicio'); return; }
+  let count = 0;
+  const cursor = new Date(fromDate);
+  while (cursor <= toDate) {
+    const dateStr = cursor.toDateString();
+    if (!state.blockedDays.includes(dateStr)) {
+      state.blockedDays.push(dateStr);
+      count++;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  if (count === 0) { showToast('Todos esos dias ya estaban bloqueados'); return; }
+  save('bgz_blocked_days', state.blockedDays);
+  renderCalendar(); renderTimes(); renderAdminBlockedDays();
+  showToast(count + ' día' + (count > 1 ? 's' : '') + ' bloqueado' + (count > 1 ? 's' : ''));
+  document.getElementById('admin-range-from').value = '';
+  document.getElementById('admin-range-to').value = '';
 });
 
 /* BLOCK TIME */
