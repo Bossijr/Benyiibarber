@@ -483,12 +483,9 @@ sb.auth.onAuthStateChange(async (event, session) => {
   if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session && session.user) {
     if (currentUser && currentUser.id === session.user.id) return; // ya inicializado
     currentUser = session.user;
-    document.getElementById('auth-screen').classList.remove('open');
     await initApp();
   } else if (event === 'INITIAL_SESSION' && !session) {
-    // No hay sesión guardada
-    showLoading(false);
-    document.getElementById('auth-screen').classList.add('open');
+    // No hay sesión — ya estamos mostrando el login, no hace falta hacer nada
   } else if (event === 'SIGNED_OUT') {
     currentUser = null;
     showApp(false);
@@ -497,9 +494,13 @@ sb.auth.onAuthStateChange(async (event, session) => {
 });
 
 async function initApp() {
-  showLoading(true);
+  // Mostramos la app inmediatamente sin overlay, cargamos datos en segundo plano
   const name = currentUser.user_metadata?.name || currentUser.email;
   document.getElementById('header-username').textContent = name.toUpperCase();
+  showApp(true);
+  renderCalendar();
+  renderTimes();
+  renderAppointments();
   try {
     await Promise.race([
       loadAllData(),
@@ -508,8 +509,6 @@ async function initApp() {
   } catch(e) {
     console.warn('loadAllData error:', e);
   }
-  showApp(true);
-  showLoading(false);
   renderCalendar();
   renderTimes();
   renderAppointments();
@@ -1034,8 +1033,9 @@ document.getElementById('next').addEventListener('click', () => {
 });
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
-// onAuthStateChange gestiona todo — incluyendo restauración de sesión (INITIAL_SESSION)
-showLoading(true);
+// Mostrar login de inmediato; onAuthStateChange se encarga si hay sesión guardada
+showLoading(false);
+document.getElementById('auth-screen').classList.add('open');
 </script>
 </body>
 </html>
