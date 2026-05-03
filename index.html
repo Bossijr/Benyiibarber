@@ -95,7 +95,8 @@
   .day-view-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px}
   .day-view-subtitle{font-size:11px;color:var(--gray);letter-spacing:2px;text-transform:uppercase;margin-top:2px}
   .day-timeline{display:flex;flex-direction:column;gap:4px}
-  .day-slot{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:3px;border:1px solid transparent}
+  .day-slot{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:3px;border:1px solid transparent;transition:border-color 0.15s}
+  .day-slot.slot-booked{align-items:flex-start;padding:10px}
   .day-slot.slot-booked{background:#0f0f0f;border-color:#222}
   .day-slot.slot-available{opacity:0.3}
   .day-slot.slot-unavailable{opacity:0.15}
@@ -657,21 +658,26 @@ function renderDayView() {
   TIMES.forEach(t => {
     const appt = appts.find(a => a.time === t);
     const isSecondSlot = !appt && state.appointments.some(a => a.date === dateStr && a.endTime === t);
-    const available = !blocked && !isSecondSlot && isTimeAvailable(dateStr, t);
+    // Skip second slot — it will be merged into the first slot's block
+    if (isSecondSlot) return;
+    const available = !blocked && isTimeAvailable(dateStr, t);
     const el = document.createElement('div');
-    el.className = 'day-slot ' + (appt ? 'slot-booked' : isSecondSlot ? 'slot-booked' : available ? 'slot-available' : 'slot-unavailable');
+    const isBlock = appt && appt.endTime; // spans two slots
+    el.className = 'day-slot ' + (appt ? 'slot-booked' : available ? 'slot-available' : 'slot-unavailable');
+    if (isBlock) el.style.minHeight = '64px'; // double height for full-hour block
     el.innerHTML =
-      '<div class="day-slot-time">' + t + '</div>' +
-      '<div class="day-slot-dot"></div>' +
+      '<div class="day-slot-time" style="' + (isBlock ? 'display:flex;flex-direction:column;justify-content:space-between;height:100%;min-height:48px' : '') + '">' +
+        '<span>' + t + '</span>' +
+        (isBlock ? '<span style="color:#333">' + appt.endTime + '</span>' : '') +
+      '</div>' +
+      '<div class="day-slot-dot" style="' + (isBlock ? 'align-self:stretch;width:2px;border-radius:1px;background:#333;margin:2px 2px' : '') + '"></div>' +
       '<div style="flex:1">' +
-        (isSecondSlot
-          ? '<div class="day-slot-name" style="font-size:11px;color:#444;letter-spacing:1px">↑ continuación</div>'
-          : appt
-          ? '<div class="day-slot-name">' + appt.name + (appt.endTime ? ' <span style="font-size:10px;color:#555">hasta ' + appt.endTime + '</span>' : '') + '</div>' +
+        (appt
+          ? '<div class="day-slot-name">' + appt.name + '</div>' +
             (appt.notes ? '<div class="day-slot-notes">' + appt.notes + '</div>' : '')
           : '<div class="day-slot-name" style="font-size:11px;color:#333;letter-spacing:1px">' + (available ? 'libre' : 'no disponible') + '</div>') +
       '</div>' +
-      (!isSecondSlot && appt ? '<button class="appt-remove" data-date="' + appt.date + '" data-time="' + appt.time + '" style="opacity:0.4">&times;</button>' : '');
+      (appt ? '<button class="appt-remove" data-date="' + appt.date + '" data-time="' + appt.time + '" style="opacity:0.4;align-self:flex-start">&times;</button>' : '');
     if (appt) {
       el.querySelector('.appt-remove').addEventListener('click', () => {
         const gi = state.appointments.findIndex(a => a.date === appt.date && a.time === appt.time);
