@@ -618,6 +618,8 @@ function renderCalendar() {
   startDow = startDow === 0 ? 6 : startDow - 1;
   const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
   const today = new Date(); today.setHours(0,0,0,0);
+  // Mínimo para reservar: mañana (1 día de antelación)
+  const minBookable = new Date(today); minBookable.setDate(minBookable.getDate() + 1);
 
   for (let i = 0; i < startDow; i++) {
     const el = document.createElement('div'); el.className = 'day-cell empty'; grid.appendChild(el);
@@ -625,13 +627,15 @@ function renderCalendar() {
   for (let day = 1; day <= daysInMonth; day++) {
     const cellDate = new Date(d.getFullYear(), d.getMonth(), day);
     const dateStr = cellDate.toDateString();
-    const isPast = cellDate < today;
+    const isToday = dateStr === today.toDateString();
+    // Admin puede ver/gestionar desde hoy; usuarios solo desde mañana
+    const isPast = state.adminOpen ? cellDate < today : cellDate < minBookable;
     const isBlocked = isDayBlocked(dateStr);
     const el = document.createElement('div');
     let cls = 'day-cell';
     if (isPast) cls += ' past';
     else if (isBlocked) cls += state.adminOpen ? ' blocked-admin' : ' blocked';
-    else if (dateStr === today.toDateString()) cls += ' today';
+    else if (isToday && state.adminOpen) cls += ' today';
     if (state.selectedDate && dateStr === state.selectedDate.toDateString()) cls += ' selected';
     // Show booking dot: admin sees all, user sees their own
     const myAppts = state.adminOpen
@@ -715,6 +719,11 @@ async function toggleAdminTime(dateStr, t) {
 // ─── BOOK APPOINTMENT ──────────────────────────────────────────────────────
 document.getElementById('btn-book').addEventListener('click', async () => {
   if (!state.selectedDate) { showToast('Selecciona una fecha'); return; }
+  // Validar mínimo 1 día de antelación
+  const _today = new Date(); _today.setHours(0,0,0,0);
+  const _minBook = new Date(_today); _minBook.setDate(_minBook.getDate() + 1);
+  const _selDay = new Date(state.selectedDate); _selDay.setHours(0,0,0,0);
+  if (_selDay < _minBook) { showToast('Las citas deben reservarse con al menos 1 día de antelación'); return; }
   if (isDayBlocked(state.selectedDate.toDateString())) { showToast('Este dia no esta disponible'); return; }
   if (!state.selectedTime) { showToast('Selecciona una hora'); return; }
   if (!isTimeAvailable(state.selectedDate.toDateString(), state.selectedTime)) { showToast('Esta hora no esta disponible'); return; }
