@@ -601,22 +601,14 @@ function showPasswordResetModal() {
 }
 
 async function initApp() {
-  // Mostramos la app inmediatamente sin overlay, cargamos datos en segundo plano
   const name = currentUser.user_metadata?.name || currentUser.email;
   document.getElementById('header-username').textContent = name.toUpperCase();
-  showApp(true);
-  renderCalendar();
-  renderTimes();
-  renderAppointments();
   try {
-    let done = false;
-    const timeoutId = setTimeout(() => { if (!done) console.warn('loadAllData timeout'); }, 10000);
     await loadAllData();
-    done = true;
-    clearTimeout(timeoutId);
   } catch(e) {
     console.warn('loadAllData error:', e);
   }
+  showApp(true);
   renderCalendar();
   renderTimes();
   renderAppointments();
@@ -668,10 +660,14 @@ document.getElementById('btn-save-name').addEventListener('click', async () => {
 });
 
 document.getElementById('btn-logout').addEventListener('click', async () => {
-  await sb.auth.signOut();
   state.appointments = [];
+  state.allAppointments = [];
   state.adminOpen = false;
+  currentUser = null;
   document.getElementById('admin-panel').classList.remove('open');
+  showApp(false);
+  document.getElementById('auth-screen').classList.add('open');
+  await sb.auth.signOut();
 });
 
 // ─── DATA LOADING ──────────────────────────────────────────────────────────
